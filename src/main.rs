@@ -36,6 +36,35 @@ struct Database {
     users: HashMap<u64, User>,
 }
 
+impl Database {
+    fn new() -> Self {
+        Self {
+            tasks: HashMap::new(),
+            users: HashMap::new(),
+        }
+    }
+
+    fn insert(&mut self, task: Task) {
+        self.tasks.insert(task.id, task);
+    }
+
+    fn get(&self, id: u64) -> Option<&Task> {
+        self.tasks.get(&id)
+    }
+
+    fn get_all(&self) -> Vec<&Task> {
+        self.tasks.values().collect()
+    }
+
+    fn delete(&mut self, id: u64) -> Option<Task> {
+        self.tasks.remove(&id)
+    }
+
+    fn update(&mut self, id: u64, task: Task) {
+        self.tasks.insert(id, task);
+    }
+}
+
 fn main() {
     println!("Hello, world!");
 }
