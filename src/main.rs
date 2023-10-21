@@ -1,12 +1,12 @@
 use actix_cors::Cors;
 
-use actix_web::{http, web, App, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::{http, web, App, HttpResponse, HttpServer, Responder};
 
 use serde::{Deserialize, Serialize};
 
-use reqwest::Client as HttpClient;
+//use reqwest::Client as HttpClient;
 
-use async_trait::async_trait;
+//use async_trait::async_trait;
 
 use std::sync::Mutex;
 
@@ -104,6 +104,47 @@ async fn read_task(app_state: web::Data<AppState>, id: web::Path<u64>) -> impl R
     }
 }
 
+async fn read_all_tasks(app_state: web::Data<AppState>) -> impl Responder {
+    let db = app_state.db.lock().unwrap();
+    let tasks = db.get_all();
+    HttpResponse::Ok().json(tasks)
+}
+
+async fn update_task(app_state: web::Data<AppState>, task: web::Json<Task>) -> impl Responder {
+    let mut db: std::sync::MutexGuard<Database> = app_state.db.lock().unwrap();
+    db.update(task.id, task.into_inner());
+    db.save_to_file().unwrap();
+    HttpResponse::Ok().finish()
+}
+
+async fn delete_task(app_state: web::Data<AppState>, id: web::Path<u64>) -> impl Responder {
+    let mut db: std::sync::MutexGuard<Database> = app_state.db.lock().unwrap();
+    db.delete(*id);
+    db.save_to_file().unwrap();
+    HttpResponse::Ok().finish()
+}
+
+async fn register_user(app_state: web::Data<AppState>, user: web::Json<User>) -> impl Responder {
+    let mut db = app_state.db.lock().unwrap();
+    db.insert_user(user.into_inner());
+    db.save_to_file().unwrap();
+    HttpResponse::Ok().finish()
+}
+
+async fn login(app_state: web::Data<AppState>, credentials: web::Json<User>) -> impl Responder {
+    let db = app_state.db.lock().unwrap();
+    match db.get_user_by_name(&credentials.username) {
+        Some(user) => {
+            if user.password == credentials.password {
+                HttpResponse::Ok().finish()
+            } else {
+                HttpResponse::Unauthorized().finish()
+            }
+        }
+        None => HttpResponse::Unauthorized().finish(),
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let db: Database = match Database::load_from_file() {
@@ -127,6 +168,11 @@ async fn main() -> std::io::Result<()> {
             .app_data(data.clone())
             .route("/task", web::post().to(create_tast))
             .route("/task/{id}", web::get().to(read_task))
+            .route("/task", web::get().to(read_all_tasks))
+            .route("/task", web::put().to(update_task))
+            .route("/task/{id}", web::delete().to(delete_task))
+            .route("/register", web::post().to(register_user))
+            .route("/login", web::post().to(login))
     })
     .bind("127.0.0.1:8080")?
     .run()
